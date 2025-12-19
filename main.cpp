@@ -3,7 +3,9 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <iomanip> 
+#include <iomanip>
+#include <numeric> 
+#include <algorithm>
 #include "SegmentTree.h"
 #include "Trie.h"
 
@@ -49,6 +51,46 @@ void loadDictionary(Trie &trie, string filename) {
     cout << "Success: Loaded " << count << " words into the Trie." << endl;
 }
 
+void displayHead(const vector<string>& headers, const vector<vector<string>>& data) {
+    cout << "\n--- Dataset Head (First 5 Rows) ---" << endl;
+    for (const string& h : headers) cout << left << setw(15) << (h.length() > 14 ? h.substr(0, 11) + "..." : h);
+    cout << endl << string(headers.size() * 15, '-') << endl;
+
+    int rowsToShow = min((int)data.size(), 5);
+    for (int i = 0; i < rowsToShow; i++) {
+        for (const string& cell : data[i]) {
+            cout << left << setw(15) << (cell.length() > 14 ? cell.substr(0, 11) + "..." : cell);
+        }
+        cout << endl;
+    }
+}
+
+void imputeMissingWithAverage(vector<vector<string>>& data, int colIndex) {
+    double sum = 0;
+    int count = 0;
+    vector<int> missingIndices;
+
+    for (int i = 0; i < (int)data.size(); i++) {
+        if (data[i][colIndex].empty() || data[i][colIndex] == " " ) {
+            missingIndices.push_back(i);
+        } else {
+            try {
+                sum += stod(data[i][colIndex]);
+                count++;
+            } catch (...) {}
+        }
+    }
+
+    if (count > 0) {
+        double avg = sum / count;
+        for (int idx : missingIndices) {
+            data[idx][colIndex] = to_string(avg);
+        }
+        cout << "Column '" << colIndex << "': Fixed " << missingIndices.size() << " empty cells with average: " << fixed << setprecision(2) << avg << endl;
+    }
+}
+
+
 int main() {
     Trie dictionary;
     loadDictionary(dictionary, "google-10000-english.txt");
@@ -74,84 +116,86 @@ int main() {
         vector<string> row;
         bool inQuotes = false;
         string currentCell = "";
-
         for (char c : line) {
-            if (c == '"') {
-                inQuotes = !inQuotes; 
-            } else if (c == ',' && !inQuotes) {
+            if (c == '"') inQuotes = !inQuotes; 
+            else if (c == ',' && !inQuotes) {
                 row.push_back(currentCell);
                 currentCell = "";
-            } else {
-                currentCell += c;
-            }
+            } else currentCell += c;
         }
         row.push_back(currentCell); 
         data.push_back(row);
     }
     csvFile.close();
 
-    cout << "\n--- CSV Column Selection ---" << endl;
-    for (int i = 0; i < (int)headers.size(); i++) {
-        cout << i << ". " << headers[i] << endl;
+    displayHead(headers, data);
+
+    cout << "\nStep 1: Column Removal. Enter column index to remove, or -1 to stop: ";
+    int toRemove;
+    while (cin >> toRemove && toRemove != -1) {
+        if (toRemove >= 0 && toRemove < (int)headers.size()) {
+            cout << "Removing column: " << headers[toRemove] << endl;
+            headers.erase(headers.begin() + toRemove);
+            for (auto& row : data) {
+                if(toRemove < row.size()) row.erase(row.begin() + toRemove);
+            }
+            for (int i = 0; i < headers.size(); i++) cout << i << ". " << headers[i] << " | ";
+            cout << "\nEnter next index or -1: ";
+        }
     }
+
+    cout << "\nStep 2: Removing rows with missing critical data (Column 0)..." << endl;
+    int initialSize = data.size();
+    data.erase(remove_if(data.begin(), data.end(), [](const vector<string>& row) {
+        return row.empty() || row[0].empty() || row[0] == " ";
+    }), data.end());
+    cout << "Removed " << initialSize - data.size() << " rows." << endl;
+
+    cout << "\nStep 3: Fill missing numerical data with averages? (1=Yes, 0=No): ";
+    int choiceAvg;
+    cin >> choiceAvg;
+    if (choiceAvg == 1) {
+        for (int i = 0; i < (int)headers.size(); i++) {
+         
+            bool foundNumeric = false;
+            for(auto& r : data) {
+                if(!r[i].empty() && isNumeric(r[i])) {
+                    foundNumeric = true;
+                    break;
+                }
+            }
+            if (foundNumeric) imputeMissingWithAverage(data, i);
+        }
+    }
+
+    cout << "\n--- Final CSV Column Selection for Analysis ---" << endl;
+    for (int i = 0; i < (int)headers.size(); i++) cout << i << ". " << headers[i] << endl;
 
     int choice;
-    cout << "\nWhich column number would you like to analyze? ";
+    cout << "\nWhich column would you like to analyze with DSA (Segment Tree/Trie)? ";
     cin >> choice;
 
-    if (choice < 0 || choice >= (int)headers.size()) {
-        cout << "Invalid selection." << endl;
-        return 1;
-    }
+    if (choice >= 0 && choice < (int)headers.size()) {
+        if (isNumeric(data[0][choice])) {
+            cout << "Building Segment Tree for stats..." << endl;
+            vector<double> numbers;
+            for (auto& row : data) numbers.push_back(safeStod(row[choice], 0, headers[choice]));
 
-    if (data.empty()) {
-        cout << "The dataset is empty." << endl;
-        return 0;
-    }
-
-    if (isNumeric(data[0][choice])) {
-
-        cout << "Detected Numeric Column. Building Segment Tree..." << endl;
-        vector<double> numbers;
-        
-        for (int i = 0; i < (int)data.size(); i++) {
-            if (choice < (int)data[i].size()) {
-                numbers.push_back(safeStod(data[i][choice], i, headers[choice]));
-            } else {
-                numbers.push_back(0.0);
-            }
-        }
-
-        SegmentTree st(numbers);
-        Node stats = st.getFullStats();
-        
-        cout << fixed << setprecision(4); 
-        cout << "\n--- Statistics for " << headers[choice] << " ---" << endl;
-        cout << "Total Sum: " << stats.sum << endl;
-        cout << "Minimum:   " << stats.minVal << endl;
-        cout << "Maximum:   " << stats.maxVal << endl;
-
-    } else {
-        cout << "\n[Notice]: Stats of '" << headers[choice] 
-             << "' column can't be found because it contains text/names." << endl;
-        cout << "Statistics are only available for numerical columns." << endl;
-        
-        cout << "\nScanning '" << headers[choice] << "' for inconsistencies using Trie..." << endl;
-        
-        for (int i = 0; i < (int)data.size(); i++) {
-            if (choice >= (int)data[i].size()) continue;
-            string currentVal = data[i][choice];
-            if (currentVal.empty()) continue;
-            
-            if (!dictionary.search(currentVal)) {
-                cout << "Inconsistency at Row " << i << ": '" << currentVal << "'" << endl;
-
-                string prefix = (currentVal.length() >= 3) ? currentVal.substr(0, 3) : currentVal;
-                vector<string> fixes = dictionary.suggest(prefix); 
-                if (!fixes.empty()) {
-                    cout << "  Suggestions: ";
-                    for (int j = 0; j < (int)fixes.size() && j < 3; j++) {
-                        cout << fixes[j] << (j == 2 || j == (int)fixes.size()-1 ? "" : ", ");
+            SegmentTree st(numbers);
+            Node stats = st.getFullStats();
+            cout << fixed << setprecision(4) << "\n--- Statistics for " << headers[choice] << " ---" << endl;
+            cout << "Total Sum: " << stats.sum << "\nMinimum: " << stats.minVal << "\nMaximum: " << stats.maxVal << endl;
+        } else {
+            cout << "\n[Notice]: Stats of '" << headers[choice] << "' can't be found (Text Column)." << endl;
+            cout << "Scanning for inconsistencies..." << endl;
+            for (int i = 0; i < (int)data.size(); i++) {
+                string val = data[i][choice];
+                if (!val.empty() && !dictionary.search(val)) {
+                    cout << "Row " << i << " Inconsistency: '" << val << "'";
+                    vector<string> fixes = dictionary.suggest(val.substr(0, 3));
+                    if(!fixes.empty()) {
+                        cout << " | Suggestions: ";
+                        for(int j=0; j<min((int)fixes.size(), 3); j++) cout << fixes[j] << " ";
                     }
                     cout << endl;
                 }
