@@ -4,204 +4,327 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <numeric> 
 #include <algorithm>
+#include <numeric>
+#include <queue>
 #include "SegmentTree.h"
 #include "Trie.h"
+#include "Hash.h"
+#include "UnionFind.h"
 
 using namespace std;
 
-double safeStod(string s, int rowIndex, string colName) {
-    try {
-        if (s.empty()) return 0.0;
-        return stod(s); 
-    } catch (...) {
-        return 0.0; 
+struct RowError
+{
+    int id;
+    int score;
+    bool operator<(const RowError &other) const
+    {
+        return score < other.score;
     }
-}
+};
 
-bool isNumeric(const string& s) {
-    if (s.empty()) return false;
-    bool decimalPoint = false;
-    for (int i = 0; i < s.length(); i++) {
-        if (i == 0 && s[i] == '-') continue;
-        if (s[i] == '.') {
-            if (decimalPoint) return false;
-            decimalPoint = true;
+bool is_num(string s)
+{
+    if (s.empty())
+        return false;
+    bool dot = false;
+    for (int i = 0; i < s.length(); i++)
+    {
+        if (i == 0 && s[i] == '-')
+            continue;
+        if (s[i] == '.')
+        {
+            if (dot)
+                return false;
+            dot = true;
             continue;
         }
-        if (!isdigit(s[i])) return false;
+        if (!isdigit(s[i]))
+            return false;
     }
     return true;
 }
 
-void loadDictionary(Trie &trie, string filename) {
-    ifstream file(filename);
-    string word;
-    if (!file.is_open()) {
-        cerr << "Error: Could not find " << filename << endl;
-        return;
+double safe_stod(string s)
+{
+    try
+    {
+        if (s.empty() || s == " ")
+            return 0.0;
+        return stod(s);
     }
-    int count = 0;
-    while (file >> word) {
-        trie.insert(word);
-        count++;
+    catch (...)
+    {
+        return 0.0;
     }
-    file.close();
-    cout << "Success: Loaded " << count << " words into the Trie." << endl;
 }
 
-void displayHead(const vector<string>& headers, const vector<vector<string>>& data) {
-    cout << "\n--- Dataset Head (First 5 Rows) ---" << endl;
-    for (const string& h : headers) cout << left << setw(15) << (h.length() > 14 ? h.substr(0, 11) + "..." : h);
-    cout << endl << string(headers.size() * 15, '-') << endl;
+void load_dict(Trie &t, string fn)
+{
+    ifstream f(fn);
+    string w;
+    if (!f.is_open())
+    {
+        cout << "Dictionary file missing!" << endl;
+        return;
+    }
+    while (f >> w)
+        t.insert(w);
+    f.close();
+}
 
-    int rowsToShow = min((int)data.size(), 5);
-    for (int i = 0; i < rowsToShow; i++) {
-        for (const string& cell : data[i]) {
-            cout << left << setw(15) << (cell.length() > 14 ? cell.substr(0, 11) + "..." : cell);
-        }
+void display_data(const vector<string> &head, const vector<vector<string>> &data)
+{
+    cout << "\n--- Dataset Preview ---" << endl;
+    for (string h : head)
+        cout << left << setw(10) << h;
+    cout << endl
+         << string(head.size() * 15, '-') << endl;
+    for (int i = 0; i < min((int)data.size(), 5); i++)
+    {
+        for (string cell : data[i])
+            cout << left << setw(10) << (cell.length() > 14 ? cell.substr(0, 11) + "..." : cell);
         cout << endl;
     }
 }
 
-void imputeMissingWithAverage(vector<vector<string>>& data, int colIndex) {
-    double sum = 0;
-    int count = 0;
-    vector<int> missingIndices;
-
-    for (int i = 0; i < (int)data.size(); i++) {
-        if (data[i][colIndex].empty() || data[i][colIndex] == " " ) {
-            missingIndices.push_back(i);
-        } else {
-            try {
-                sum += stod(data[i][colIndex]);
-                count++;
-            } catch (...) {}
-        }
-    }
-
-    if (count > 0) {
-        double avg = sum / count;
-        for (int idx : missingIndices) {
-            data[idx][colIndex] = to_string(avg);
-        }
-        cout << "Column '" << colIndex << "': Fixed " << missingIndices.size() << " empty cells with average: " << fixed << setprecision(2) << avg << endl;
+void remove_column(vector<string> &head, vector<vector<string>> &data)
+{
+    cout << "Enter column index to remove or -1: ";
+    int rem;
+    cin >> rem;
+    if (rem >= 0 && rem < (int)head.size())
+    {
+        head.erase(head.begin() + rem);
+        for (auto &r : data)
+            if (rem < (int)r.size())
+                r.erase(r.begin() + rem);
+        cout << "Column removed successfully." << endl;
     }
 }
 
+void handle_duplicates(vector<vector<string>> &data)
+{
+    cout << "Scanning for duplicates..." << endl;
+    Hash h_map(data.size() * 2);
+    UnionFind dsu(data.size());
+    int d_cnt = 0;
 
-int main() {
-    Trie dictionary;
-    loadDictionary(dictionary, "google-10000-english.txt");
+    for (int i = 0; i < (int)data.size(); i++)
+    {
+        string key = "";
+        for (string s : data[i])
+            key += s + "|";
+        int match = h_map.get(key);
+        if (match != -1)
+        {
+            dsu.unite(i, match);
+            d_cnt++;
+        }
+        else
+        {
+            h_map.add(key, i);
+        }
+    }
 
-    string filename = "data.csv"; 
-    ifstream csvFile(filename);
-    if (!csvFile.is_open()) {
-        cout << "Could not open " << filename << ". Please ensure it exists." << endl;
+    cout << "Duplicates found: " << d_cnt << ". Merge unique rows? (1:Yes, 0:No): ";
+    int choice;
+    cin >> choice;
+    if (choice == 1)
+    {
+        vector<vector<string>> clean;
+        vector<bool> seen(data.size(), false);
+        for (int i = 0; i < (int)data.size(); i++)
+        {
+            int root = dsu.find(i);
+            if (!seen[root])
+            {
+                clean.push_back(data[i]);
+                seen[root] = true;
+            }
+        }
+        data = clean;
+        cout << "Duplicates removed. New row count: " << data.size() << endl;
+    }
+}
+
+void impute_missing(const vector<string> &head, vector<vector<string>> &data)
+{
+    cout << "Imputing missing numeric values..." << endl;
+    for (int j = 0; j < (int)head.size(); j++)
+    {
+        double sum = 0;
+        int cnt = 0;
+        for (int i = 0; i < (int)data.size(); i++)
+        {
+            if (is_num(data[i][j]))
+            {
+                sum += safe_stod(data[i][j]);
+                cnt++;
+            }
+        }
+
+        if (cnt > 0)
+        {
+            string avg = to_string(sum / cnt);
+            for (int i = 0; i < (int)data.size(); i++)
+                if (data[i][j] == "" || data[i][j] == " ")
+                    data[i][j] = avg;
+        }
+    }
+    cout << "Done." << endl;
+}
+
+void show_priority_rows(const vector<string> &head, const vector<vector<string>> &data, Trie &dict)
+{
+    priority_queue<RowError> pq;
+    for (int i = 0; i < (int)data.size(); i++)
+    {
+        int score = 0;
+        for (int j = 0; j < (int)head.size(); j++)
+        {
+            if (data[i][j].empty() || data[i][j] == " ")
+                score += 2;
+            else if (!is_num(data[i][j]) && !dict.search(data[i][j]))
+                score += 1;
+        }
+        if (score > 0)
+            pq.push({i, score});
+    }
+
+    cout << "\n--- Top 5 Rows Needing Attention ---" << endl;
+    for (int i = 0; i < 5 && !pq.empty(); i++)
+    {
+        RowError top = pq.top();
+        pq.pop();
+        cout << "Row " << top.id << " | Dirty Score: " << top.score << endl;
+    }
+}
+
+void analyze_column(const vector<string> &head, const vector<vector<string>> &data, Trie &dict)
+{
+    cout << "Select Column (0-" << head.size() - 1 << "): ";
+    int sel;
+    cin >> sel;
+    if (sel < 0 || sel >= (int)head.size())
+        return;
+
+    if (is_num(data[0][sel]))
+    {
+
+        vector<double> nums;
+        for (auto &r : data)
+            nums.push_back(safe_stod(r[sel]));
+        SegmentTree st(nums);
+        Node res = st.getFullStats();
+        cout << "Sum: " << res.sum << " | Min: " << res.minVal << " | Max: " << res.maxVal << endl;
+    }
+    else
+    {
+
+        cout << "Checking for typos..." << endl;
+        for (int i = 0; i < (int)data.size(); i++)
+        {
+            if (!data[i][sel].empty() && !dict.search(data[i][sel]))
+            {
+                cout << "Row " << i << ": " << data[i][sel];
+                vector<string> sug = dict.suggest(data[i][sel].substr(0, 3));
+                if (!sug.empty())
+                    cout << " -> Try: " << sug[0];
+                cout << endl;
+            }
+        }
+    }
+}
+
+int main()
+{
+    Trie dict;
+    load_dict(dict, "google-10000-english.txt");
+
+    string fn = "data.csv";
+    ifstream file(fn);
+    if (!file.is_open())
+    {
+        cout << "Could not open " << fn << endl;
         return 1;
     }
 
-    vector<string> headers;
+    vector<string> head;
     vector<vector<string>> data;
     string line;
 
-    if (getline(csvFile, line)) {
+    if (getline(file, line))
+    {
         stringstream ss(line);
-        string cell;
-        while (getline(ss, cell, ',')) headers.push_back(cell);
+        string c;
+        while (getline(ss, c, ','))
+            head.push_back(c);
     }
 
-    while (getline(csvFile, line)) {
-        vector<string> row;
-        bool inQuotes = false;
-        string currentCell = "";
-        for (char c : line) {
-            if (c == '"') inQuotes = !inQuotes; 
-            else if (c == ',' && !inQuotes) {
-                row.push_back(currentCell);
-                currentCell = "";
-            } else currentCell += c;
-        }
-        row.push_back(currentCell); 
-        data.push_back(row);
-    }
-    csvFile.close();
-
-    displayHead(headers, data);
-
-    cout << "\nStep 1: Column Removal. Enter column index to remove, or -1 to stop: ";
-    int toRemove;
-    while (cin >> toRemove && toRemove != -1) {
-        if (toRemove >= 0 && toRemove < (int)headers.size()) {
-            cout << "Removing column: " << headers[toRemove] << endl;
-            headers.erase(headers.begin() + toRemove);
-            for (auto& row : data) {
-                if(toRemove < row.size()) row.erase(row.begin() + toRemove);
+    while (getline(file, line))
+    {
+        vector<string> r;
+        bool in_q = false;
+        string cur = "";
+        for (char ch : line)
+        {
+            if (ch == '"')
+                in_q = !in_q;
+            else if (ch == ',' && !in_q)
+            {
+                r.push_back(cur);
+                cur = "";
             }
-            for (int i = 0; i < headers.size(); i++) cout << i << ". " << headers[i] << " | ";
-            cout << "\nEnter next index or -1: ";
+            else
+                cur += ch;
+        }
+        r.push_back(cur);
+        data.push_back(r);
+    }
+    file.close();
+
+    int choice = 0;
+    while (choice != 7)
+    {
+        cout << "\n--- Smart Data Cleaning Engine ---" << endl;
+        cout << "1. Display Current Data" << endl;
+        cout << "2. Remove Columns" << endl;
+        cout << "3. Handle Duplicates" << endl;
+        cout << "4. Fill Missing Values" << endl;
+        cout << "5. Prioritize Cleaning" << endl;
+        cout << "6. Analyze Column" << endl;
+        cout << "7. Exit" << endl;
+        cout << "Choice: ";
+        cin >> choice;
+
+        switch (choice)
+        {
+        case 1:
+            display_data(head, data);
+            break;
+        case 2:
+            remove_column(head, data);
+            break;
+        case 3:
+            handle_duplicates(data);
+            break;
+        case 4:
+            impute_missing(head, data);
+            break;
+        case 5:
+            show_priority_rows(head, data, dict);
+            break;
+        case 6:
+            analyze_column(head, data, dict);
+            break;
+        case 7:
+            cout << "Exiting..." << endl;
+            break;
+        default:
+            cout << "Invalid choice!" << endl;
         }
     }
-
-    cout << "\nStep 2: Removing rows with missing critical data (Column 0)..." << endl;
-    int initialSize = data.size();
-    data.erase(remove_if(data.begin(), data.end(), [](const vector<string>& row) {
-        return row.empty() || row[0].empty() || row[0] == " ";
-    }), data.end());
-    cout << "Removed " << initialSize - data.size() << " rows." << endl;
-
-    cout << "\nStep 3: Fill missing numerical data with averages? (1=Yes, 0=No): ";
-    int choiceAvg;
-    cin >> choiceAvg;
-    if (choiceAvg == 1) {
-        for (int i = 0; i < (int)headers.size(); i++) {
-         
-            bool foundNumeric = false;
-            for(auto& r : data) {
-                if(!r[i].empty() && isNumeric(r[i])) {
-                    foundNumeric = true;
-                    break;
-                }
-            }
-            if (foundNumeric) imputeMissingWithAverage(data, i);
-        }
-    }
-
-    cout << "\n--- Final CSV Column Selection for Analysis ---" << endl;
-    for (int i = 0; i < (int)headers.size(); i++) cout << i << ". " << headers[i] << endl;
-
-    int choice;
-    cout << "\nWhich column would you like to analyze with DSA (Segment Tree/Trie)? ";
-    cin >> choice;
-
-    if (choice >= 0 && choice < (int)headers.size()) {
-        if (isNumeric(data[0][choice])) {
-            cout << "Building Segment Tree for stats..." << endl;
-            vector<double> numbers;
-            for (auto& row : data) numbers.push_back(safeStod(row[choice], 0, headers[choice]));
-
-            SegmentTree st(numbers);
-            Node stats = st.getFullStats();
-            cout << fixed << setprecision(4) << "\n--- Statistics for " << headers[choice] << " ---" << endl;
-            cout << "Total Sum: " << stats.sum << "\nMinimum: " << stats.minVal << "\nMaximum: " << stats.maxVal << endl;
-        } else {
-            cout << "\n[Notice]: Stats of '" << headers[choice] << "' can't be found (Text Column)." << endl;
-            cout << "Scanning for inconsistencies..." << endl;
-            for (int i = 0; i < (int)data.size(); i++) {
-                string val = data[i][choice];
-                if (!val.empty() && !dictionary.search(val)) {
-                    cout << "Row " << i << " Inconsistency: '" << val << "'";
-                    vector<string> fixes = dictionary.suggest(val.substr(0, 3));
-                    if(!fixes.empty()) {
-                        cout << " | Suggestions: ";
-                        for(int j=0; j<min((int)fixes.size(), 3); j++) cout << fixes[j] << " ";
-                    }
-                    cout << endl;
-                }
-            }
-        }
-    }
-
     return 0;
 }
