@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <numeric>
 #include <queue>
+#include <math.h>
+#include <ctime>
 #include "SegmentTree.h"
 #include "Trie.h"
 #include "Hash.h"
@@ -23,6 +25,12 @@ struct RowError
     {
         return score < other.score;
     }
+};
+
+struct Point
+{
+    double x, y;
+    int cluster;
 };
 
 bool is_num(string s)
@@ -60,6 +68,144 @@ double safe_stod(string s)
         return 0.0;
     }
 }
+
+class Analytics
+{
+public:
+    static double calculate_correlation(const vector<double> &x, const vector<double> &y)
+    {
+        if (x.size() != y.size() || x.empty())
+            return 0.0;
+        double n = x.size();
+        double sum_x = accumulate(x.begin(), x.end(), 0.0);
+        double sum_y = accumulate(y.begin(), y.end(), 0.0);
+        double sum_xy = inner_product(x.begin(), x.end(), y.begin(), 0.0);
+        double sum_x2 = inner_product(x.begin(), x.end(), x.begin(), 0.0);
+        double sum_y2 = inner_product(y.begin(), y.end(), y.begin(), 0.0);
+
+        double num = n * sum_xy - (sum_x * sum_y);
+        double den = sqrt((n * sum_x2 - pow(sum_x, 2)) * (n * sum_y2 - pow(sum_y, 2)));
+        return (den == 0) ? 0 : num / den;
+    }
+
+    static void run_kmeans(const vector<double> &x, const vector<double> &y, int k)
+    {
+        int n = x.size();
+        vector<Point> points(n);
+        for (int i = 0; i < n; i++)
+            points[i] = {x[i], y[i], -1};
+
+        vector<Point> centroids(k);
+        for (int i = 0; i < k; i++)
+            centroids[i] = points[rand() % n];
+
+        for (int iter = 0; iter < 50; iter++)
+        {
+            for (auto &p : points)
+            {
+                double min_d = 1e18;
+                for (int c = 0; c < k; c++)
+                {
+                    double d = pow(p.x - centroids[c].x, 2) + pow(p.y - centroids[c].y, 2);
+                    if (d < min_d)
+                    {
+                        min_d = d;
+                        p.cluster = c;
+                    }
+                }
+            }
+            vector<double> sx(k, 0), sy(k, 0);
+            vector<int> counts(k, 0);
+            for (const auto &p : points)
+            {
+                sx[p.cluster] += p.x;
+                sy[p.cluster] += p.y;
+                counts[p.cluster]++;
+            }
+            for (int i = 0; i < k; i++)
+                if (counts[i] > 0)
+                {
+                    centroids[i].x = sx[i] / counts[i];
+                    centroids[i].y = sy[i] / counts[i];
+                }
+        }
+        visualize(points);
+    }
+
+    static void visualize(const vector<Point> &points)
+    {
+        const int W = 50, H = 15;
+        vector<vector<char>> grid(H, vector<char>(W, '.'));
+        double min_x = 1e18, max_x = -1e18, min_y = 1e18, max_y = -1e18;
+        for (auto &p : points)
+        {
+            min_x = min(min_x, p.x);
+            max_x = max(max_x, p.x);
+            min_y = min(min_y, p.y);
+            max_y = max(max_y, p.y);
+        }
+        for (auto &p : points)
+        {
+            int ix = (int)((p.x - min_x) / (max_x - min_x + 1e-9) * (W - 1));
+            int iy = (int)((p.y - min_y) / (max_y - min_y + 1e-9) * (H - 1));
+            grid[H - 1 - iy][ix] = '0' + p.cluster;
+        }
+        for (auto &row : grid)
+        {
+            for (char c : row)
+                cout << c;
+            cout << endl;
+        }
+    }
+
+    static pair<double, double> run_regression(const vector<double> &x, const vector<double> &y, double split_ratio)
+    {
+        int n = x.size();
+        if (n == 0)
+            return {0, 0};
+
+        int train_size = (int)(n * split_ratio);
+
+        double sx = 0, sy = 0, sxx = 0, sxy = 0;
+        for (int i = 0; i < train_size; i++)
+        {
+            sx += x[i];
+            sy += y[i];
+            sxx += x[i] * x[i];
+            sxy += x[i] * y[i];
+        }
+
+        double denominator = (train_size * sxx - sx * sx);
+        if (denominator == 0)
+        {
+            cout << "Error: All X values are identical. Cannot fit line.\n";
+            return {0, 0};
+        }
+
+        double slope = (train_size * sxy - sx * sy) / denominator;
+        double intercept = (sy - slope * sx) / train_size;
+
+        cout << "\n--- Model Trained on " << train_size << " samples ---\n";
+        cout << "Equation: y = " << slope << "x + " << intercept << endl;
+
+        if (n - train_size > 0)
+        {
+            double total_error = 0;
+            cout << "\n--- Testing on " << n - train_size << " samples ---\n";
+            for (int i = train_size; i < n; i++)
+            {
+                double pred = slope * x[i] + intercept;
+                double error = abs(pred - y[i]);
+                total_error += error;
+                if (i < train_size + 5)
+                    cout << "Act: " << y[i] << " | Pred: " << pred << " | Diff: " << error << endl;
+            }
+            cout << "Mean Absolute Error (MAE): " << total_error / (n - train_size) << endl;
+        }
+
+        return {slope, intercept};
+    }
+};
 
 void load_dict(Trie &t, string fn)
 {
@@ -196,14 +342,27 @@ void impute_missing(const vector<string> &head, vector<vector<string>> &data)
 
 void show_priority_rows(const vector<string> &head, vector<vector<string>> &data, Trie &dict)
 {
+<<<<<<< HEAD
     vector<pair<int, int>> row_scores; 
+=======
+
+    vector<pair<int, int>> row_scores;
+
+>>>>>>> ee7beaa18d8be7964c278616bc9772ccb059582a
     for (int i = 0; i < (int)data.size(); i++)
     {
         int score = 0;
         for (int j = 0; j < (int)head.size(); j++)
         {
+<<<<<<< HEAD
             if (data[i][j].empty() || data[i][j] == " ")
                 score += 2;
+=======
+
+            if (data[i][j].empty() || data[i][j] == " ")
+                score += 2;
+
+>>>>>>> ee7beaa18d8be7964c278616bc9772ccb059582a
             else if (!is_num(data[i][j]) && !dict.search(data[i][j]))
                 score += 1;
         }
@@ -211,7 +370,10 @@ void show_priority_rows(const vector<string> &head, vector<vector<string>> &data
     }
 
     sort(row_scores.rbegin(), row_scores.rend());
+<<<<<<< HEAD
 
+=======
+>>>>>>> ee7beaa18d8be7964c278616bc9772ccb059582a
     cout << "\n--- Top 5 Rows Needing Attention ---" << endl;
     for (int i = 0; i < min(5, (int)row_scores.size()); i++)
     {
@@ -265,26 +427,119 @@ void save_data(const vector<string> &head, const vector<vector<string>> &data, s
     file.close();
     cout << "Data successfully saved to " << filename << endl;
 }
+void perform_analytics(const vector<string> &head, const vector<vector<string>> &data)
+{
+    cout << "1. Correlation Matrix\n2. K-Means Clustering\n3. Regression\nChoice: ";
+    int ch;
+    cin >> ch;
+    vector<int> nums;
+    for (int i = 0; i < head.size(); i++)
+        if (!data.empty() && is_num(data[0][i]))
+            nums.push_back(i);
+
+    if (ch == 1)
+    {
+        for (int i : nums)
+        {
+            cout << head[i].substr(0, 5) << " | ";
+            for (int j : nums)
+            {
+                vector<double> vx, vy;
+                for (auto &r : data)
+                {
+                    vx.push_back(safe_stod(r[i]));
+                    vy.push_back(safe_stod(r[j]));
+                }
+                cout << setw(8) << Analytics::calculate_correlation(vx, vy);
+            }
+            cout << endl;
+        }
+    }
+    else if (ch == 2)
+    {
+        cout << "X col index: ";
+        int x;
+        cin >> x;
+        cout << "Y col index: ";
+        int y;
+        cin >> y;
+        vector<double> vx, vy;
+        for (auto &r : data)
+        {
+            vx.push_back(safe_stod(r[x]));
+            vy.push_back(safe_stod(r[y]));
+        }
+        Analytics::run_kmeans(vx, vy, 3);
+    }
+    else if (ch == 3)
+    {
+        cout << "\nAvailable Numeric Columns:\n";
+        for (int i : nums)
+            cout << i << ": " << head[i] << endl;
+        cout << "Select Independent Variable (X): ";
+        int x;
+        cin >> x;
+        cout << "Select Dependent Variable (Y to predict): ";
+        int y;
+        cin >> y;
+
+        vector<double> vx, vy;
+        for (auto &r : data)
+        {
+            if (is_num(r[x]) && is_num(r[y]))
+            {
+                vx.push_back(safe_stod(r[x]));
+                vy.push_back(safe_stod(r[y]));
+            }
+        }
+
+        cout << "Enter Train Ratio (e.g., 0.8): ";
+        double ratio;
+        cin >> ratio;
+        pair<double, double> model = Analytics::run_regression(vx, vy, ratio);
+        double slope = model.first;
+        double intercept = model.second;
+
+        if (slope != 0 || intercept != 0)
+        {
+            cout << "\n--- Prediction Mode (Enter -999 to exit) ---" << endl;
+            double val;
+            while (true)
+            {
+                cout << "Predict '" << head[y] << "' for '" << head[x] << "' = ";
+                cin >> val;
+                if (val == -999)
+                    break;
+                cout << ">> Result: " << slope * val + intercept << endl;
+            }
+        }
+    }
+}
 
 void filter_data(const vector<string> &head, const vector<vector<string>> &data)
 {
     cout << "Select Numeric Column to Filter (0-" << head.size() - 1 << "): ";
-    int sel; cin >> sel;
+    int sel;
+    cin >> sel;
 
-    if (sel < 0 || sel >= (int)head.size() || !is_num(data[0][sel])) {
+    if (sel < 0 || sel >= (int)head.size() || !is_num(data[0][sel]))
+    {
         cout << "Invalid or Non-numeric column!" << endl;
         return;
     }
 
     AVLTree tree;
     cout << "Building Index (AVL Tree)..." << endl;
-    for (int i = 0; i < (int)data.size(); i++) {
+    for (int i = 0; i < (int)data.size(); i++)
+    {
         tree.add(safe_stod(data[i][sel]), i);
     }
 
     double minV, maxV;
-    cout << "Enter Minimum Value: "; cin >> minV;
-    cout << "Enter Maximum Value: "; cin >> maxV;
+    cout << "Enter Minimum Value: ";
+    cin >> minV;
+    cout << "Enter Maximum Value: ";
+    cin >> maxV;
 
     cout << "\n--- Filter Results ---" << endl;
     tree.query(tree.root, minV, maxV, data);
@@ -330,8 +585,9 @@ int main()
 {
     Trie dict;
     load_dict(dict, "google-10000-english.txt");
-
-    string fn = "data.csv";
+    cout << "Enter the Filename";
+    string fn;
+    cin >> fn;
     ifstream file(fn);
     if (!file.is_open())
     {
@@ -383,10 +639,11 @@ int main()
         cout << "4. Fill Missing Values" << endl;
         cout << "5. Prioritize Cleaning" << endl;
         cout << "6. Analyze Column" << endl;
-        cout << "7. Filter data" << endl;
-        cout << "8. Remove Row" << endl;
-        cout << "9. Save Data" << endl;
-        cout << "10. Exit" << endl;
+        cout << "7. Filter Data" << endl;
+        cout << "8. Remove row" << endl;
+        cout << "9. Save data" << endl;
+        cout << "10. Perform Analyics" << endl;
+        cout << "11. EXIT" << endl;
         cout << "Choice: ";
         cin >> choice;
 
@@ -411,7 +668,7 @@ int main()
             analyze_column(head, data, dict);
             break;
         case 7:
-            filter_data(head, data); 
+            filter_data(head, data);
             break;
         case 8:
             remove_row(data);
@@ -420,10 +677,13 @@ int main()
             save_data(head, data, "cleaned_data.csv");
             break;
         case 10:
-            cout << "Exiting..." << endl;
+            perform_analytics(head, data);
+            break;
+        case 11:
+            cout << "Exiting program. Goodbye!" << endl;
             return 0;
         default:
-            cout << "Invalid choice!" << endl;
+            cout << "Invalid choice! Please enter 1-11." << endl;
         }
     }
     return 0;
