@@ -11,6 +11,7 @@
 #include "Trie.h"
 #include "Hash.h"
 #include "UnionFind.h"
+#include "AVL.h"
 
 using namespace std;
 
@@ -273,6 +274,30 @@ void save_data(const vector<string> &head, const vector<vector<string>> &data, s
     cout << "Data successfully saved to " << filename << endl;
 }
 
+void filter_data(const vector<string> &head, const vector<vector<string>> &data)
+{
+    cout << "Select Numeric Column to Filter (0-" << head.size() - 1 << "): ";
+    int sel; cin >> sel;
+
+    if (sel < 0 || sel >= (int)head.size() || !is_num(data[0][sel])) {
+        cout << "Invalid or Non-numeric column!" << endl;
+        return;
+    }
+
+    AVLTree tree;
+    cout << "Building Index (AVL Tree)..." << endl;
+    for (int i = 0; i < (int)data.size(); i++) {
+        tree.add(safe_stod(data[i][sel]), i);
+    }
+
+    double minV, maxV;
+    cout << "Enter Minimum Value: "; cin >> minV;
+    cout << "Enter Maximum Value: "; cin >> maxV;
+
+    cout << "\n--- Filter Results ---" << endl;
+    tree.query(tree.root, minV, maxV, data);
+}
+
 void analyze_column(const vector<string> &head, const vector<vector<string>> &data, Trie &dict)
 {
     cout << "Select Column (0-" << head.size() - 1 << "): ";
@@ -366,9 +391,10 @@ int main()
         cout << "4. Fill Missing Values" << endl;
         cout << "5. Prioritize Cleaning" << endl;
         cout << "6. Analyze Column" << endl;
-        cout << "7. Remove Row" << endl;
-        cout << "8. Save Data" << endl;
-        cout << "9. Exit" << endl;
+        cout << "7. Filter data" << endl;
+        cout << "8. Remove Row" << endl;
+        cout << "9. Save Data" << endl;
+        cout << "10. Exit" << endl;
         cout << "Choice: ";
         cin >> choice;
 
@@ -393,16 +419,17 @@ int main()
             analyze_column(head, data, dict);
             break;
         case 7:
-            remove_row(data);
+            filter_data(head, data); 
             break;
         case 8:
-            save_data(head, data, "cleaned_data.csv");
+            remove_row(data);
             break;
         case 9:
+            save_data(head, data, "cleaned_data.csv");
+            break;
+        case 10:
             cout << "Exiting..." << endl;
             return 0;
-            break;
-
         default:
             cout << "Invalid choice!" << endl;
         }
