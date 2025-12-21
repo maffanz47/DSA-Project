@@ -342,27 +342,14 @@ void impute_missing(const vector<string> &head, vector<vector<string>> &data)
 
 void show_priority_rows(const vector<string> &head, vector<vector<string>> &data, Trie &dict)
 {
-<<<<<<< HEAD
     vector<pair<int, int>> row_scores; 
-=======
-
-    vector<pair<int, int>> row_scores;
-
->>>>>>> ee7beaa18d8be7964c278616bc9772ccb059582a
     for (int i = 0; i < (int)data.size(); i++)
     {
         int score = 0;
         for (int j = 0; j < (int)head.size(); j++)
         {
-<<<<<<< HEAD
             if (data[i][j].empty() || data[i][j] == " ")
                 score += 2;
-=======
-
-            if (data[i][j].empty() || data[i][j] == " ")
-                score += 2;
-
->>>>>>> ee7beaa18d8be7964c278616bc9772ccb059582a
             else if (!is_num(data[i][j]) && !dict.search(data[i][j]))
                 score += 1;
         }
@@ -370,10 +357,6 @@ void show_priority_rows(const vector<string> &head, vector<vector<string>> &data
     }
 
     sort(row_scores.rbegin(), row_scores.rend());
-<<<<<<< HEAD
-
-=======
->>>>>>> ee7beaa18d8be7964c278616bc9772ccb059582a
     cout << "\n--- Top 5 Rows Needing Attention ---" << endl;
     for (int i = 0; i < min(5, (int)row_scores.size()); i++)
     {
