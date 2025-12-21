@@ -391,9 +391,10 @@ int main()
         cout << "4. Fill Missing Values" << endl;
         cout << "5. Prioritize Cleaning" << endl;
         cout << "6. Analyze Column" << endl;
-        cout << "7. Remove Row" << endl;
-        cout << "8. Save Data" << endl;
-        cout << "9. Exit" << endl;
+        cout << "7. Filter Data" << endl;
+        cout << "8. Remove row" << endl;
+        cout << "9. Save data" << endl;
+        cout << "10. Exit" << endl;
         cout << "Choice: ";
         cin >> choice;
 
