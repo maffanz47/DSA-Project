@@ -196,28 +196,22 @@ void impute_missing(const vector<string> &head, vector<vector<string>> &data)
 
 void show_priority_rows(const vector<string> &head, vector<vector<string>> &data, Trie &dict)
 {
-    // 1. Calculate scores for everyone
-    vector<pair<int, int>> row_scores; // Stores {score, original_index}
-
+    vector<pair<int, int>> row_scores; 
     for (int i = 0; i < (int)data.size(); i++)
     {
         int score = 0;
         for (int j = 0; j < (int)head.size(); j++)
         {
-            // +2 for missing data
             if (data[i][j].empty() || data[i][j] == " ")
                 score += 2;
-            // +1 for typos in text columns (non-numeric)
             else if (!is_num(data[i][j]) && !dict.search(data[i][j]))
                 score += 1;
         }
         row_scores.push_back({score, i});
     }
 
-    // 2. Sort simple vector to find the worst ones (descending order)
     sort(row_scores.rbegin(), row_scores.rend());
 
-    // 3. Show the worst rows
     cout << "\n--- Top 5 Rows Needing Attention ---" << endl;
     for (int i = 0; i < min(5, (int)row_scores.size()); i++)
     {
@@ -226,8 +220,6 @@ void show_priority_rows(const vector<string> &head, vector<vector<string>> &data
             cout << "Original Row " << row_scores[i].second << " | Dirty Score: " << row_scores[i].first << endl;
         }
     }
-
-    // 4. The New Feature: Actually Move Data
     cout << "\nWould you like to sort the dataset to bring these errors to the top? (1:Yes, 0:No): ";
     int choice;
     cin >> choice;
@@ -239,7 +231,7 @@ void show_priority_rows(const vector<string> &head, vector<vector<string>> &data
         {
             sorted_data.push_back(data[p.second]);
         }
-        data = sorted_data; // Update the main dataset
+        data = sorted_data; 
         cout << "Dataset sorted! The dirtiest rows are now at the top." << endl;
     }
 }

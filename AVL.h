@@ -61,7 +61,7 @@ public:
         else if (value > node->value)
             node->right = insert(node->right, value, rowID);
         else {
-            node->rowIDs.push_back(rowID); // Duplicate value found, add ID to list
+            node->rowIDs.push_back(rowID); 
             return node;
         }
 
