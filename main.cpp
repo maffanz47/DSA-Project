@@ -104,6 +104,23 @@ void remove_column(vector<string> &head, vector<vector<string>> &data)
     }
 }
 
+void remove_row(vector<vector<string>> &data)
+{
+    cout << "Enter Row ID to remove (0 to " << data.size() - 1 << "): ";
+    int idx;
+    cin >> idx;
+
+    if (idx >= 0 && idx < (int)data.size())
+    {
+        data.erase(data.begin() + idx);
+        cout << "Row " << idx << " deleted." << endl;
+    }
+    else
+    {
+        cout << "Invalid Row ID." << endl;
+    }
+}
+
 void handle_duplicates(vector<vector<string>> &data)
 {
     cout << "Scanning for duplicates..." << endl;
@@ -176,30 +193,84 @@ void impute_missing(const vector<string> &head, vector<vector<string>> &data)
     cout << "Done." << endl;
 }
 
-void show_priority_rows(const vector<string> &head, const vector<vector<string>> &data, Trie &dict)
+void show_priority_rows(const vector<string> &head, vector<vector<string>> &data, Trie &dict)
 {
-    priority_queue<RowError> pq;
+    // 1. Calculate scores for everyone
+    vector<pair<int, int>> row_scores; // Stores {score, original_index}
+
     for (int i = 0; i < (int)data.size(); i++)
     {
         int score = 0;
         for (int j = 0; j < (int)head.size(); j++)
         {
+            // +2 for missing data
             if (data[i][j].empty() || data[i][j] == " ")
                 score += 2;
+            // +1 for typos in text columns (non-numeric)
             else if (!is_num(data[i][j]) && !dict.search(data[i][j]))
                 score += 1;
         }
-        if (score > 0)
-            pq.push({i, score});
+        row_scores.push_back({score, i});
     }
 
+    // 2. Sort simple vector to find the worst ones (descending order)
+    sort(row_scores.rbegin(), row_scores.rend());
+
+    // 3. Show the worst rows
     cout << "\n--- Top 5 Rows Needing Attention ---" << endl;
-    for (int i = 0; i < 5 && !pq.empty(); i++)
+    for (int i = 0; i < min(5, (int)row_scores.size()); i++)
     {
-        RowError top = pq.top();
-        pq.pop();
-        cout << "Row " << top.id << " | Dirty Score: " << top.score << endl;
+        if (row_scores[i].first > 0)
+        {
+            cout << "Original Row " << row_scores[i].second << " | Dirty Score: " << row_scores[i].first << endl;
+        }
     }
+
+    // 4. The New Feature: Actually Move Data
+    cout << "\nWould you like to sort the dataset to bring these errors to the top? (1:Yes, 0:No): ";
+    int choice;
+    cin >> choice;
+
+    if (choice == 1)
+    {
+        vector<vector<string>> sorted_data;
+        for (auto &p : row_scores)
+        {
+            sorted_data.push_back(data[p.second]);
+        }
+        data = sorted_data; // Update the main dataset
+        cout << "Dataset sorted! The dirtiest rows are now at the top." << endl;
+    }
+}
+void save_data(const vector<string> &head, const vector<vector<string>> &data, string filename)
+{
+    ofstream file(filename);
+    if (!file.is_open())
+    {
+        cout << "Error: Could not write to file!" << endl;
+        return;
+    }
+    for (int i = 0; i < head.size(); i++)
+    {
+        file << head[i] << (i == head.size() - 1 ? "" : ",");
+    }
+    file << "\n";
+
+    for (const auto &row : data)
+    {
+        for (int i = 0; i < row.size(); i++)
+        {
+            if (row[i].find(',') != string::npos)
+                file << "\"" << row[i] << "\"";
+            else
+                file << row[i];
+
+            file << (i == row.size() - 1 ? "" : ",");
+        }
+        file << "\n";
+    }
+    file.close();
+    cout << "Data successfully saved to " << filename << endl;
 }
 
 void analyze_column(const vector<string> &head, const vector<vector<string>> &data, Trie &dict)
@@ -286,7 +357,7 @@ int main()
     file.close();
 
     int choice = 0;
-    while (choice != 7)
+    while (choice != 9)
     {
         cout << "\n--- Smart Data Cleaning Engine ---" << endl;
         cout << "1. Display Current Data" << endl;
@@ -295,7 +366,9 @@ int main()
         cout << "4. Fill Missing Values" << endl;
         cout << "5. Prioritize Cleaning" << endl;
         cout << "6. Analyze Column" << endl;
-        cout << "7. Exit" << endl;
+        cout << "7. Remove Row" << endl;
+        cout << "8. Save Data" << endl;
+        cout << "9. Exit" << endl;
         cout << "Choice: ";
         cin >> choice;
 
@@ -320,8 +393,16 @@ int main()
             analyze_column(head, data, dict);
             break;
         case 7:
-            cout << "Exiting..." << endl;
+            remove_row(data);
             break;
+        case 8:
+            save_data(head, data, "cleaned_data.csv");
+            break;
+        case 9:
+            cout << "Exiting..." << endl;
+            return 0;
+            break;
+
         default:
             cout << "Invalid choice!" << endl;
         }
