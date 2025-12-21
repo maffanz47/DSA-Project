@@ -568,7 +568,7 @@ int main()
 {
     Trie dict;
     load_dict(dict, "google-10000-english.txt");
-    cout << "Enter the Filename";
+    cout << "Enter the Filename : ";
     string fn;
     cin >> fn;
     ifstream file(fn);
@@ -613,7 +613,7 @@ int main()
     file.close();
 
     int choice = 0;
-    while (choice != 9)
+    while (choice != 11)
     {
         cout << "\n--- Smart Data Cleaning Engine ---" << endl;
         cout << "1. Display Current Data" << endl;
