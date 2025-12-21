@@ -196,28 +196,25 @@ void impute_missing(const vector<string> &head, vector<vector<string>> &data)
 
 void show_priority_rows(const vector<string> &head, vector<vector<string>> &data, Trie &dict)
 {
-    // 1. Calculate scores for everyone
-    vector<pair<int, int>> row_scores; // Stores {score, original_index}
+
+    vector<pair<int, int>> row_scores;
 
     for (int i = 0; i < (int)data.size(); i++)
     {
         int score = 0;
         for (int j = 0; j < (int)head.size(); j++)
         {
-            // +2 for missing data
+
             if (data[i][j].empty() || data[i][j] == " ")
                 score += 2;
-            // +1 for typos in text columns (non-numeric)
+
             else if (!is_num(data[i][j]) && !dict.search(data[i][j]))
                 score += 1;
         }
         row_scores.push_back({score, i});
     }
 
-    // 2. Sort simple vector to find the worst ones (descending order)
     sort(row_scores.rbegin(), row_scores.rend());
-
-    // 3. Show the worst rows
     cout << "\n--- Top 5 Rows Needing Attention ---" << endl;
     for (int i = 0; i < min(5, (int)row_scores.size()); i++)
     {
@@ -226,8 +223,6 @@ void show_priority_rows(const vector<string> &head, vector<vector<string>> &data
             cout << "Original Row " << row_scores[i].second << " | Dirty Score: " << row_scores[i].first << endl;
         }
     }
-
-    // 4. The New Feature: Actually Move Data
     cout << "\nWould you like to sort the dataset to bring these errors to the top? (1:Yes, 0:No): ";
     int choice;
     cin >> choice;
@@ -277,22 +272,27 @@ void save_data(const vector<string> &head, const vector<vector<string>> &data, s
 void filter_data(const vector<string> &head, const vector<vector<string>> &data)
 {
     cout << "Select Numeric Column to Filter (0-" << head.size() - 1 << "): ";
-    int sel; cin >> sel;
+    int sel;
+    cin >> sel;
 
-    if (sel < 0 || sel >= (int)head.size() || !is_num(data[0][sel])) {
+    if (sel < 0 || sel >= (int)head.size() || !is_num(data[0][sel]))
+    {
         cout << "Invalid or Non-numeric column!" << endl;
         return;
     }
 
     AVLTree tree;
     cout << "Building Index (AVL Tree)..." << endl;
-    for (int i = 0; i < (int)data.size(); i++) {
+    for (int i = 0; i < (int)data.size(); i++)
+    {
         tree.add(safe_stod(data[i][sel]), i);
     }
 
     double minV, maxV;
-    cout << "Enter Minimum Value: "; cin >> minV;
-    cout << "Enter Maximum Value: "; cin >> maxV;
+    cout << "Enter Minimum Value: ";
+    cin >> minV;
+    cout << "Enter Maximum Value: ";
+    cin >> maxV;
 
     cout << "\n--- Filter Results ---" << endl;
     tree.query(tree.root, minV, maxV, data);
@@ -391,10 +391,9 @@ int main()
         cout << "4. Fill Missing Values" << endl;
         cout << "5. Prioritize Cleaning" << endl;
         cout << "6. Analyze Column" << endl;
-        cout << "7. Filter data" << endl;
-        cout << "8. Remove Row" << endl;
-        cout << "9. Save Data" << endl;
-        cout << "10. Exit" << endl;
+        cout << "7. Remove Row" << endl;
+        cout << "8. Save Data" << endl;
+        cout << "9. Exit" << endl;
         cout << "Choice: ";
         cin >> choice;
 
@@ -419,7 +418,7 @@ int main()
             analyze_column(head, data, dict);
             break;
         case 7:
-            filter_data(head, data); 
+            filter_data(head, data);
             break;
         case 8:
             remove_row(data);
@@ -430,6 +429,8 @@ int main()
         case 10:
             cout << "Exiting..." << endl;
             return 0;
+            break;
+
         default:
             cout << "Invalid choice!" << endl;
         }
